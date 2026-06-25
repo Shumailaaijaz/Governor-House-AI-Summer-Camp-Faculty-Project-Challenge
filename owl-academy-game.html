@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>The Memory Thief</title>
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:#070a16;color:#fff7ea;font-family:'Segoe UI',system-ui,Arial,sans-serif;
+    overflow:hidden;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:none;}
+  #app{height:100%;display:flex;flex-direction:column;max-width:640px;margin:0 auto;position:relative;
+    background:linear-gradient(180deg,#0b0f22,#070a16);}
+
+  #hud{display:flex;align-items:center;gap:5px;padding:7px 9px 4px;background:#11162c;border-bottom:1px solid #232c52;flex-shrink:0;}
+  .hpill{display:flex;align-items:center;gap:4px;background:#1a2142;border:1px solid #303a72;border-radius:14px;
+    padding:5px 9px;font-weight:700;font-size:12px;white-space:nowrap;}
+  #forgetWrap{flex:1;min-width:36px;height:9px;background:#1a2142;border-radius:5px;overflow:hidden;margin:0 2px;position:relative;}
+  #forgetFill{height:100%;width:12%;background:linear-gradient(90deg,#6b46c1,#ff6b9d);transition:width .4s;}
+  .iconBtn{background:#1a2142;border:1px solid #303a72;border-radius:50%;width:30px;height:30px;font-size:13px;
+    color:#fff7ea;cursor:pointer;flex-shrink:0;}
+  #objectiveBar{padding:5px 9px 7px;background:#11162c;border-bottom:1px solid #232c52;flex-shrink:0;
+    font-size:11.5px;font-weight:700;color:#ffe9b8;text-align:center;line-height:1.3;}
+
+  #gameArea{flex:1;position:relative;display:flex;align-items:center;justify-content:center;background:#04060d;overflow:hidden;}
+  #gcanvas{width:100%;max-width:600px;height:auto;image-rendering:pixelated;display:block;}
+  #hintBar{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(10,14,30,.9);
+    border:1px solid #354080;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:700;text-align:center;
+    max-width:90%;pointer-events:none;opacity:0;transition:opacity .3s;z-index:18;color:#ffe9b8;}
+  #hintBar.show{opacity:1;}
+  #toast{position:absolute;top:42px;left:50%;transform:translateX(-50%);background:rgba(10,14,30,.92);
+    border:1px solid #354080;border-radius:10px;padding:6px 12px;font-size:12px;font-weight:600;text-align:center;
+    max-width:88%;pointer-events:none;opacity:0;transition:opacity .3s;z-index:20;}
+  #toast.show{opacity:1;}
+  #flashBorder{position:absolute;inset:0;pointer-events:none;z-index:15;opacity:0;transition:opacity .15s;}
+
+  #floatLayer{position:absolute;inset:0;pointer-events:none;z-index:25;overflow:hidden;}
+  .floatTxt{position:absolute;font-weight:900;font-size:13px;color:#ffd166;text-shadow:0 1px 4px #000;
+    animation:fup 1.15s ease-out forwards;white-space:nowrap;}
+  @keyframes fup{0%{opacity:1;transform:translateY(0) scale(1);}100%{opacity:0;transform:translateY(-36px) scale(1.1);}}
+
+  #dialogue{position:absolute;left:8px;right:8px;bottom:8px;background:linear-gradient(160deg,#1c2547,#11162e);
+    border:2px solid #354080;border-radius:14px;padding:11px 13px;display:none;z-index:30;box-shadow:0 8px 22px rgba(0,0,0,.55);}
+  #dialogue.show{display:block;animation:slideUp .25s ease;}
+  @keyframes slideUp{from{transform:translateY(20px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+  #dlgName{font-weight:800;font-size:13px;color:#7fe3ff;margin-bottom:3px;}
+  #dlgText{font-size:13.5px;line-height:1.42;white-space:pre-line;}
+  #dlgActions{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;}
+  .dlgBtn{flex:1;min-width:90px;padding:9px;border-radius:9px;border:1px solid #354080;background:#283466;
+    color:#fff7ea;font-weight:700;font-size:12.5px;cursor:pointer;}
+  .dlgBtn.primary{background:linear-gradient(90deg,#ffd166,#ffb84f);color:#1b1335;border:none;}
+
+  #controls{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:9px 10px 12px;
+    background:#11162c;border-top:1px solid #232c52;gap:6px;}
+  #dpad{display:grid;grid-template-columns:40px 40px 40px;grid-template-rows:40px 40px 40px;gap:3px;flex-shrink:0;}
+  .dbtn{background:#1a2142;border:1px solid #303a72;border-radius:9px;color:#fff7ea;font-size:17px;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;touch-action:none;}
+  .dbtn.active{background:#445099;}
+  #interactWrap{display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;}
+  #interactBtn{width:58px;height:58px;border-radius:50%;background:linear-gradient(160deg,#ffd166,#ffb84f);
+    border:none;font-size:21px;cursor:pointer;box-shadow:0 4px 0 #b9851f;position:relative;}
+  #interactBtn:active{transform:translateY(3px);box-shadow:0 1px 0 #b9851f;}
+  #interactBtn.pulse{animation:pulseGlow 1s ease-in-out infinite;}
+  @keyframes pulseGlow{0%,100%{box-shadow:0 4px 0 #b9851f,0 0 0 0 rgba(255,209,102,.6);}50%{box-shadow:0 4px 0 #b9851f,0 0 0 9px rgba(255,209,102,0);}}
+  #ilabel{font-size:9.5px;color:#9fb0ff;font-weight:700;}
+  #powers{display:flex;gap:6px;flex-shrink:0;}
+  .pwrBtn{width:50px;height:58px;border-radius:11px;border:2px solid rgba(255,255,255,.18);cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:#fff7ea;font-size:9.5px;font-weight:700;
+    position:relative;transition:transform .1s;}
+  .pwrBtn:active{transform:scale(.93);}
+  .pwrBtn .pic{font-size:19px;}
+  .pwrBtn .pcost{font-size:8px;opacity:.85;font-weight:600;}
+  #pwMem{background:linear-gradient(160deg,#6b4fd6,#3f2d80);}
+  #pwSky{background:linear-gradient(160deg,#1fa8b8,#13606b);}
+  #pwOwl{background:linear-gradient(160deg,#c9743f,#864a26);}
+  .pwrBtn.disabled{opacity:.32;}
+  .pwrBtn.nearby{box-shadow:0 0 0 3px rgba(255,255,255,.55),0 0 16px rgba(255,255,255,.5);}
+
+  .overlay{position:absolute;inset:0;background:rgba(4,6,16,.94);z-index:50;display:none;flex-direction:column;
+    align-items:center;justify-content:center;padding:20px;text-align:center;gap:10px;overflow-y:auto;}
+  .overlay.show{display:flex;}
+  .overlay h1{font-size:clamp(20px,6vw,28px);margin:6px 0 0;background:linear-gradient(90deg,#ffd166,#ff8fb1);
+    -webkit-background-clip:text;background-clip:text;color:transparent;}
+  .overlay p{font-size:13.5px;line-height:1.55;max-width:400px;color:#dfe3ff;}
+  .ovBtn{padding:13px 26px;border:none;border-radius:12px;font-weight:800;font-size:15px;color:#1b1335;
+    background:linear-gradient(90deg,#ffd166,#ffb84f);cursor:pointer;box-shadow:0 5px 0 #b9851f;}
+  .ovBtn:active{transform:translateY(3px);box-shadow:0 1px 0 #b9851f;}
+  .ovGhost{padding:10px 20px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:transparent;
+    color:#fff7ea;font-weight:700;font-size:13px;cursor:pointer;}
+  .upgList{display:flex;flex-direction:column;gap:8px;width:100%;max-width:380px;}
+  .upgItem{display:flex;align-items:center;gap:10px;background:#1c2547;border:1px solid #354080;border-radius:12px;padding:10px;text-align:left;}
+  .upgItem .uIcon{font-size:24px;}
+  .upgItem .uInfo{flex:1;}
+  .upgItem .uName{font-weight:800;font-size:13px;}
+  .upgItem .uDesc{font-size:11px;color:#9fb0ff;}
+  .upgBtn{padding:7px 10px;border-radius:8px;border:none;background:#ffd166;color:#1b1335;font-weight:800;font-size:11.5px;cursor:pointer;}
+  .upgBtn.disabled{opacity:.35;}
+  .achGrid{display:flex;flex-direction:column;gap:7px;width:100%;max-width:400px;max-height:34vh;overflow-y:auto;}
+  .achRow{display:flex;align-items:center;gap:8px;background:#1c2547;border:1px solid #354080;border-radius:10px;padding:8px;text-align:left;}
+  .achRow.locked{opacity:.45;}
+  .achRow .aIcon{font-size:18px;width:24px;text-align:center;}
+  .achRow .aName{font-weight:800;font-size:12px;}
+  .achRow .aDesc{font-size:10.5px;color:#9fb0ff;}
+  .helpRow{display:flex;align-items:flex-start;gap:10px;text-align:left;background:#1c2547;border:1px solid #354080;
+    border-radius:12px;padding:10px;max-width:400px;width:100%;}
+  .helpRow .hIcon{font-size:24px;flex-shrink:0;}
+  .helpRow b{color:#ffd166;}
+  .legendDot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <div class="hpill">🔮 <span id="shardVal">0</span>/<span id="shardTotalVal">18</span></div>
+    <div class="hpill">⚡ <span id="energyVal">0</span>/<span id="energyMaxVal">0</span></div>
+    <div id="forgetWrap" title="The Forgetting"><div id="forgetFill"></div></div>
+    <button class="iconBtn" id="helpBtn" title="How to play">❓</button>
+    <button class="iconBtn" id="logBtn" title="Journal">📒</button>
+    <button class="iconBtn" id="soundBtn" title="Sound">🔊</button>
+    <button class="iconBtn" id="pauseBtn" title="Pause">⏸️</button>
+  </div>
+  <div id="objectiveBar">🧭 Loading...</div>
+
+  <div id="gameArea">
+    <canvas id="gcanvas"></canvas>
+    <div id="flashBorder"></div>
+    <div id="hintBar"></div>
+    <div id="toast"></div>
+    <div id="floatLayer"></div>
+    <div id="dialogue">
+      <div id="dlgName">???</div>
+      <div id="dlgText">...</div>
+      <div id="dlgActions"></div>
+    </div>
+
+    <div class="overlay show" id="ov-title">
+      <div style="font-size:54px;">🦉</div>
+      <h1>The Memory Thief</h1>
+      <p>Lumina is going quiet. Books empty themselves overnight. A bridge vanished from every map at once,
+      though it still stands when you walk to it. Something is taking the world apart, fact by fact —
+      and the Grand Library has nobody else to send but you.</p>
+      <button class="ovBtn" id="startBtn">Step Into Lumina</button>
+      <button class="ovGhost" id="loadBtn">Continue Saved Game</button>
+    </div>
+
+    <div class="overlay" id="ov-intro">
+      <div style="font-size:46px;">🧙‍♀️</div>
+      <h1 style="font-size:21px;">Olwen's Workshop</h1>
+      <p>"Three charms, apprentice." <i>She presses them into your hand.</i> "Walk up to whatever's in your
+      way out there and try one. You'll feel it when it's right. Now go — the road will teach you faster than I can."</p>
+      <button class="ovBtn" id="intoWorldBtn">Enter the World</button>
+    </div>
+
+    <div class="overlay" id="ov-help">
+      <h1 style="font-size:20px;">How to Play</h1>
+      <div class="helpRow"><div class="hIcon">🎯</div><div><b>The actual goal</b> — reach the Ancient Ruins door (southeast, past the Castle), open it with Memory Pulse, go inside, and seal all three rifts you find there while dodging the Thief's attacks. That's how the game ends. The Goal bar under the top HUD always tells you exactly how many tiles away it is.</div></div>
+      <div class="helpRow"><div class="hIcon">🥇</div><div><b>Spotting the door</b> — every blocked obstacle pulses white <i>except</i> the Ruins door, which pulses GOLD.</div></div>
+      <div class="helpRow"><div class="hIcon">🔮</div><div><b>Shards are optional</b> — currency for Owl Scouts and upgrades. You can't get permanently stuck without them: the basic shards never require Owl Scouts to reach, and the final room always has a couple of its own.</div></div>
+      <div class="helpRow"><div class="hIcon">🕹️</div><div><b>Move</b> — hold the arrow pad (or arrow keys / WASD). <b>Talk</b> — walk up to a character and tap ✋.</div></div>
+      <div class="helpRow">
+        <div class="hIcon">🪄</div>
+        <div><b>The three charms (one idea, three forms):</b><br>
+        <span class="legendDot" style="background:#6b4fd6"></span>Memory Pulse — already known, free, instant. Can go stale.<br>
+        <span class="legendDot" style="background:#1fa8b8"></span>Sky Scan — true right now, costs ⚡. Fixes staleness.<br>
+        <span class="legendDot" style="background:#c9743f"></span>Owl Scouts — somewhere you can't reach, costs 🔮. About reach, not freshness.</div>
+      </div>
+      <button class="ovBtn" id="closeHelpBtn">Got it</button>
+    </div>
+
+    <div class="overlay" id="ov-pause">
+      <div style="font-size:44px;">⏸️</div>
+      <h1 style="font-size:20px;">Paused</h1>
+      <button class="ovBtn" id="resumeBtn">Resume</button>
+      <button class="ovGhost" id="helpFromPauseBtn">How to Play</button>
+      <button class="ovGhost" id="quitToTitleBtn">Quit to Title</button>
+    </div>
+
+    <div class="overlay" id="ov-log">
+      <h1 style="font-size:20px;">Journal</h1>
+      <p style="margin:-4px 0 2px;font-size:12px;color:#9fb0ff;">Field Notes</p>
+      <div class="achGrid" id="notesGrid" style="margin-bottom:4px;"></div>
+      <p style="margin:0 0 2px;font-size:12px;color:#9fb0ff;">Achievements — grey means not done yet.</p>
+      <div class="achGrid" id="achGrid"></div>
+      <button class="ovGhost" id="closeLogBtn">Close</button>
+    </div>
+
+    <div class="overlay" id="ov-upgrade">
+      <div style="font-size:42px;">🧙‍♀️</div>
+      <h1 style="font-size:19px;">Olwen's Bench</h1>
+      <p style="margin-bottom:0;">Trade Knowledge Shards for lasting upgrades.</p>
+      <div class="upgList" id="upgList"></div>
+      <button class="ovGhost" id="closeUpgradeBtn">Close</button>
+    </div>
+
+    <div class="overlay" id="ov-win">
+      <div style="font-size:54px;">🏆</div>
+      <h1 style="font-size:22px;" id="winTitle">Lumina Wakes Up</h1>
+      <p id="winText"></p>
+      <p style="color:#9fb0ff;font-size:12.5px;">Shards gathered: <span id="finalShards">0</span>/18</p>
+      <button class="ovBtn" id="playAgainBtn">Play Again</button>
+    </div>
+
+    <div class="overlay" id="ov-lose">
+      <div style="font-size:50px;">📖</div>
+      <h1 style="font-size:21px;">The Forgetting Catches Up</h1>
+      <p>The world blurs at the edges, and for a moment even you forget what you came here to do.
+      Then it passes — apprentices are sturdier than they look.</p>
+      <button class="ovBtn" id="retryBtn">Try Again</button>
+    </div>
+  </div>
+
+  <div id="controls">
+    <div id="dpad">
+      <div></div><button class="dbtn" id="btnUp">▲</button><div></div>
+      <button class="dbtn" id="btnLeft">◀</button><div></div><button class="dbtn" id="btnRight">▶</button>
+      <div></div><button class="dbtn" id="btnDown">▼</button><div></div>
+    </div>
+    <div id="interactWrap">
+      <button id="interactBtn">✋</button>
+      <div id="ilabel">talk</div>
+    </div>
+    <div id="powers">
+      <button class="pwrBtn" id="pwMem"><span class="pic">👁️</span>Memory<span class="pcost">free</span></button>
+      <button class="pwrBtn" id="pwSky"><span class="pic">🔭</span>Sky<span class="pcost" id="skyCostTxt">2⚡</span></button>
+      <button class="pwrBtn" id="pwOwl"><span class="pic">🦉</span>Owls<span class="pcost" id="owlCostTxt">3🔮</span></button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ================= AUDIO ================= */
+let soundOn=true, actx=null;
+function ensureCtx(){ if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } }
+function beep(freq,dur,type){ if(!soundOn) return; ensureCtx(); if(!actx) return;
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type=type||'sine'; o.frequency.value=freq; g.gain.value=.07;
+  o.connect(g); g.connect(actx.destination); o.start();
+  g.gain.exponentialRampToValueAtTime(.0001, actx.currentTime+dur); o.stop(actx.currentTime+dur);
+}
+const sndUI=()=>beep(440,.07,'triangle');
+const sndGood=()=>{beep(660,.1,'sine');setTimeout(()=>beep(880,.14,'sine'),90);setTimeout(()=>beep(1100,.16,'sine'),180);};
+const sndFizzle=()=>beep(180,.15,'sawtooth');
+const sndShard=()=>{beep(900,.07);setTimeout(()=>beep(1300,.1),70);};
+const sndOwl=()=>{beep(523,.09);setTimeout(()=>beep(392,.09),90);};
+const sndAttack=()=>{beep(140,.2,'sawtooth');setTimeout(()=>beep(100,.25,'sawtooth'),60);};
+const sndWarn=()=>beep(900,.05,'square');
+
+document.getElementById('soundBtn').onclick=function(){
+  soundOn=!soundOn; this.textContent=soundOn?'🔊':'🔇'; if(soundOn) sndUI();
+  if(musicGain && actx) musicGain.gain.linearRampToValueAtTime(soundOn?0.5:0, actx.currentTime+0.3);
+};
+
+/* ================= AMBIENT MUSIC ================= */
+let musicGain=null, musicStarted=false;
+const scaleNotes=[261.6,293.7,329.6,392.0,440.0,523.3];
+function startMusic(){
+  if(musicStarted) return; musicStarted=true;
+  ensureCtx(); if(!actx) return;
+  musicGain=actx.createGain(); musicGain.gain.value=soundOn?0.5:0; musicGain.connect(actx.destination);
+  [130.8,196.0,164.8].forEach((f,i)=>{
+    const o=actx.createOscillator(), g=actx.createGain(), filt=actx.createBiquadFilter();
+    o.type='sine'; o.frequency.value=f;
+    filt.type='lowpass'; filt.frequency.value=900;
+    g.gain.value=0.05;
+    o.connect(filt); filt.connect(g); g.connect(musicGain);
+    o.start();
+    const lfo=actx.createOscillator(); lfo.frequency.value=0.05+i*0.02;
+    const lfoGain=actx.createGain(); lfoGain.gain.value=2.5;
+    lfo.connect(lfoGain); lfoGain.connect(o.frequency); lfo.start();
+  });
+  function pluck(){
+    if(!musicStarted) return;
+    const f=scaleNotes[Math.floor(Math.random()*scaleNotes.length)];
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type='triangle'; o.frequency.value=f;
+    g.gain.value=0.0001;
+    o.connect(g); g.connect(musicGain);
+    o.start();
+    const t=actx.currentTime;
+    g.gain.linearRampToValueAtTime(0.045, t+0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+1.8);
+    o.stop(t+1.9);
+    setTimeout(pluck, 1800+Math.random()*1800);
+  }
+  setTimeout(pluck, 1200);
+}
+window.addEventListener('pointerdown', startMusic, {once:true});
+window.addEventListener('keydown', startMusic, {once:true});
+
+/* ================= CONSTANTS ================= */
+const TILE=22;
+const W_COLS=24, W_ROWS=18;
+const TOTAL_SHARDS=18;
+const worldMap=[];
+function buildWorld(){
+  worldMap.length=0;
+  for(let r=0;r<W_ROWS;r++){
+    let row=[];
+    for(let c=0;c<W_COLS;c++){
+      let t='.';
+      if(r===0||r===W_ROWS-1||c===0||c===W_COLS-1) t='#';
+      row.push(t);
+    }
+    worldMap.push(row);
+  }
+  for(let r=1;r<W_ROWS-1;r++) for(let c=18;c<W_COLS-1;c++) worldMap[r][c]='~';
+  for(let r=6;r<12;r++){ worldMap[r][16]='S'; worldMap[r][17]='S'; }
+  worldMap[8][17]='P'; worldMap[8][18]='G'; worldMap[8][19]='P'; worldMap[8][20]='P'; worldMap[8][21]='P';
+  worldMap[7][20]='P'; worldMap[9][20]='P';
+  worldMap[6][17]='N';
+  for(let r=10;r<17;r++) for(let c=1;c<9;c++){ if((r+c)%5===0) worldMap[r][c]='#'; }
+  worldMap[13][3]='F'; worldMap[13][4]='F'; worldMap[14][3]='F'; worldMap[14][4]='F';
+  worldMap[16][12]='B'; worldMap[15][12]='.'; worldMap[17][12]='#';
+  worldMap[15][16]='D';
+  worldMap[2][5]='C';
+  worldMap[3][18]='T';
+  worldMap[3][10]='#'; worldMap[3][11]='#'; worldMap[14][9]='#';
+}
+buildWorld();
+const DUNGEON_ENTRANCE={c:16,r:15};
+
+const D_COLS=14, D_ROWS=10;
+const dungeonMap=[];
+function buildDungeon(){
+  dungeonMap.length=0;
+  for(let r=0;r<D_ROWS;r++){
+    let row=[];
+    for(let c=0;c<D_COLS;c++){
+      let t='.';
+      if(r===0||r===D_ROWS-1||c===0||c===D_COLS-1) t='#';
+      row.push(t);
+    }
+    dungeonMap.push(row);
+  }
+  dungeonMap[3][3]='RM'; dungeonMap[3][10]='RS'; dungeonMap[7][6]='RO';
+}
+buildDungeon();
+const DUNGEON_EXIT={c:1,r:8};
+let dungeonShardEntities=[];
+
+const PUZZLE_TYPES=['F','B','G','D','C','T','N','RM','RS','RO'];
+const BLOCKED=new Set(['#','~','F','B','G','D','C','T','N','RM','RS','RO']);
+function isBlocked(map,c,r,cols,rows){ if(c<0||r<0||c>=cols||r>=rows) return true; return BLOCKED.has(map[r][c]); }
+
+/* ================= ENTITIES ================= */
+function px(c){ return c*TILE+TILE/2; }
+const npcLines={
+  "Archivist Olwen":["Don't track mud on my floor, apprentice.","Whatever's out there, it's been here longer than the Library.","Try things. Worst case, nothing happens. That's not the same as failing.","See that old tablet by the west shelf? I've never managed to read it myself."],
+  "Granny Wisteria":["Mind the kettle, it's got opinions of its own.","You remind me of my grandson — always halfway out the door.","Bring me shards, I'll make it worth your while."],
+  "Sailor Brann":["The tide's been wrong all week. Wrong in a way I can't explain.","Lost a hat to a gull once. Never forgave the gull.","That gate won't budge for guessing. You'll need to actually check the tide.","There's something out past the shallows, near the rocks. Too far to swim to, mind."],
+  "Hermit Yew":["The fog out there isn't weather. Weather doesn't watch you back.","Some things you can't walk to. You have to send someone who can.","Three days I've not spoken to a soul. You'll do."],
+  "Astronomer Vell":["Starlight you see left its star ages ago. Wild, isn't it?","My telescope's been acting strange. Try looking through it yourself if you've a charm for it.","There's a gap in the sky-charts. Same week the bridge un-mapped itself."],
+  "King Aldric":["A kingdom runs on more secrets than gold.","Bring me shards and I'll remember you kindly. Probably in a song.","Whatever's under those ruins, it's older than my crown. Look east of here for a gold-glowing door."]
+};
+const npcs=[
+  {name:"Archivist Olwen", av:"🧙‍♀️", c:3, r:2, upgradeVendor:true},
+  {name:"Granny Wisteria", av:"👵", c:7, r:5, quest:{need:3, doneText:"Granny beams and presses something warm wrapped in cloth into your hands.", reward:{energyMax:2}, given:false}},
+  {name:"Sailor Brann", av:"🧑‍✈️", c:16, r:7, quest:null},
+  {name:"Hermit Yew", av:"🧙", c:4, r:11, quest:null},
+  {name:"Astronomer Vell", av:"🧑‍🔬", c:17, r:3, quest:null},
+  {name:"King Aldric", av:"👑", c:11, r:14, quest:{need:6, doneText:"The King actually stands up. 'I'll have the bards exaggerate this considerably,' he says, almost smiling.", reward:{forgetReduce:14}, given:false}},
+];
+
+let shardEntities=[], hiddenShards=[];
+function resetShards(){
+  shardEntities=[
+    {c:5,r:4},{c:9,r:7},{c:14,r:5},{c:6,r:9},{c:13,r:9},{c:17,r:9},
+    {c:2,r:12},{c:13,r:6},{c:10,r:11},{c:8,r:13},{c:14,r:14},{c:19,r:8}
+  ].map(s=>({...s,taken:false}));
+  hiddenShards=[];
+}
+
+/* ================= THE THIEF — appears throughout, not just at the end ================= */
+const thiefSightings=[
+  {key:'firstShard', test:s=>s.shards>=1, title:'???', text:"Something pulls back into a doorway as you turn — gone before you're sure you saw it at all."},
+  {key:'fog', test:s=>s.secretsCleared.fog, title:'???', text:"From deep in the cleared grove, something that isn't quite a voice says: \"Curious. Most don't bother sending help where they can't see for themselves.\""},
+  {key:'rubble', test:s=>s.secretsCleared.rubble, title:'???', text:"Low laughter rolls out of the gap in the rubble, and is gone the instant you look straight at it."},
+  {key:'gate', test:s=>s.secretsCleared.gate, title:'???', text:"The harbor water ripples in a perfect circle — no wind, no stone thrown. Nobody else on the dock seems to notice."},
+  {key:'granny', test:s=>s.questGiven.granny, title:'???', text:"Every candle in the village square snuffs out at exactly the same moment, then relights itself a breath later, as if nothing happened at all."},
+  {key:'door', test:s=>s.secretsCleared.door, title:'???', text:"As the gold light fades from the door, a voice finally speaks plainly: \"Oh good. You're the curious kind. Come in, then.\""}
+];
+function checkThiefSightings(){
+  thiefSightings.forEach(t=>{
+    if(!S.sightingsShown[t.key] && t.test(S)){
+      S.sightingsShown[t.key]=true;
+      setTimeout(()=> openDialogue(t.title, t.text, [{label:"...", fn:closeDialogue}]), 650);
+    }
+  });
+}
+
+/* ================= STATE ================= */
+function freshState(){
+  return {
+    scene:'overworld',
+    px:px(3)+44, py:px(7),
+    shards:0, _totalShardsEver:0, allShardsAnnounced:false,
+    energy:5, energyMax:5, energyRegenT:0,
+    forgetting:12,
+    upgrades:{energy1:false, energy2:false, owlCost:false},
+    questGiven:{}, secretsCleared:{}, achieved:{}, journalNotes:[], conceptShown:{mem:false,sky:false,owl:false},
+    sightingsShown:{}, dungeonWarnedLowShards:false,
+    facing:'down', moveAnim:0,
+    keysHeld:{}, dpad:{up:false,down:false,left:false,right:false},
+    powerCooldown:{mem:0, sky:0, owl:0},
+    bossRifts:{RM:false,RS:false,RO:false},
+    graduated:false
+  };
+}
+let S=freshState();
+let savedSnapshot=null;
+let lastTime=performance.now();
+let particles=[];
+let owlAnim=null;
+let paused=true;
+let dungeonDangers=[]; // {c,r,timer,phase:'warn'|'gone'}
+let dungeonSpawnT=2.5;
+
+/* ================= PLAIN-ENGLISH CONCEPT EXPLANATIONS ================= */
+const conceptText={
+  mem:{title:"Memory Pulse — just worked.", body:"In plain terms: this is using knowledge that's already known and stored, recalled instantly with no lookup needed.\n\nIt's right when a fact is stable. Its weak point: if the world moved on since that knowledge was learned, it won't know — that's the trade-off for being free and instant."},
+  sky:{title:"Sky Scan — just worked.", body:"In plain terms: this is checking something that's true right now, instead of relying on what was known before.\n\nThis is the fix for staleness — anything that changes day to day needs this instead of memory."},
+  owl:{title:"Owl Scouts — just worked.", body:"In plain terms: this is sending investigation somewhere you personally can't reach, and getting back a fuller answer pieced together from that effort.\n\nNot about freshness — about reach. Use it for things blocked, distant, or too tangled to check in one glance."}
+};
+function maybeShowConcept(power){
+  if(S.conceptShown[power]) return;
+  S.conceptShown[power]=true;
+  const c=conceptText[power];
+  setTimeout(()=>{ openDialogue(c.title, c.body, [{label:"Got it", primary:true, fn:closeDialogue}]); }, 550);
+}
+
+/* ================= ACHIEVEMENTS ================= */
+const achievements=[
+  {key:'firstShard', icon:'🔮', name:'First Shard', desc:'Walk over any Knowledge Shard to collect it.', test:s=>s.shards>=1},
+  {key:'shards6', icon:'💠', name:'Glimmer Hoard', desc:'Collect 6 shards total (lifetime pickups, spending is fine).', test:s=>s._totalShardsEver>=6},
+  {key:'shardsAll', icon:'✨', name:'Full Hoard', desc:`Collect all ${TOTAL_SHARDS} shards (optional — not required to finish the game).`, test:s=>s._totalShardsEver>=TOTAL_SHARDS},
+  {key:'gate', icon:'⚓', name:'Tidecaller', desc:'Use Sky Scan on the harbor checkpoint (🚧 tile, east).', test:s=>s.secretsCleared.gate},
+  {key:'telescope', icon:'🔭', name:'Stargazer', desc:'Use Sky Scan on the Observatory telescope (🔭 tile, north-east).', test:s=>s.secretsCleared.telescope},
+  {key:'tablet', icon:'📜', name:'Old Words', desc:'Use Memory Pulse on the carved tablet near Olwen (📜 tile, north-west).', test:s=>s.secretsCleared.tablet},
+  {key:'fog', icon:'🌲', name:'Into the Fog', desc:'Use Owl Scouts on the fog patch in the forest (west).', test:s=>s.secretsCleared.fog},
+  {key:'rubble', icon:'🪨', name:'Cleared the Way', desc:'Use Owl Scouts on the rubble behind the Castle (south).', test:s=>s.secretsCleared.rubble},
+  {key:'farwater', icon:'🌊', name:'Beyond the Shallows', desc:'Use Owl Scouts on the sparkle in the water (✨ tile, east).', test:s=>s.secretsCleared.farwater},
+  {key:'door', icon:'🗝️', name:'The Old Door', desc:'Use Memory Pulse on the GOLD-glowing Ancient Ruins door.', test:s=>s.secretsCleared.door},
+  {key:'grannyq', icon:'🍞', name:"Granny's Favor", desc:'Have 3+ shards, talk to Granny, pick "Give 3 shards."', test:s=>s.questGiven.granny},
+  {key:'kingq', icon:'👑', name:'Royal Favor', desc:'Have 6+ shards, talk to King Aldric, pick "Give 6 shards."', test:s=>s.questGiven.king},
+  {key:'upgrade1', icon:'🧪', name:'Upgraded', desc:'Talk to Olwen, pick "Browse upgrades," buy any one upgrade.', test:s=>s.upgrades.energy1||s.upgrades.energy2||s.upgrades.owlCost},
+  {key:'boss', icon:'🏆', name:'Lumina Remembers — FINISHES THE GAME', desc:'Open the gold door, go inside, dodge the attacks, and seal all three rifts.', test:s=>s.graduated}
+];
+function checkAch(){
+  let any=false;
+  achievements.forEach(a=>{ if(!S.achieved[a.key] && a.test(S)){ S.achieved[a.key]=true; any=true; sndGood(); spawnToast('📒 '+a.name); } });
+  if(any) renderLog();
+  checkThiefSightings();
+  if(!S.allShardsAnnounced && S._totalShardsEver>=TOTAL_SHARDS){
+    S.allShardsAnnounced=true;
+    setTimeout(()=> openDialogue("All Shards Found", "Every Knowledge Shard in Lumina is yours. They've been currency and achievements all along, not the finish line.\n\nThe game still ends the same way: reach the gold Ancient Ruins door, open it, and seal what's waiting inside.", [{label:"Got it", primary:true, fn:closeDialogue}]), 500);
+  }
+}
+function renderLog(){
+  const notesGrid=document.getElementById('notesGrid'); notesGrid.innerHTML='';
+  const notes=S.journalNotes||[];
+  if(notes.length===0){
+    notesGrid.innerHTML=`<div class="achRow locked"><div class="aIcon">📭</div><div><div class="aName">Nothing logged yet</div><div class="aDesc">Clear an obstacle out in the world and your owl will jot down what happened.</div></div></div>`;
+  } else {
+    notes.slice().reverse().forEach(n=>{
+      const div=document.createElement('div'); div.className='achRow';
+      div.innerHTML=`<div class="aIcon">${n.icon}</div><div><div class="aDesc" style="color:#dfe3ff;font-size:11.5px;">${n.text}</div></div>`;
+      notesGrid.appendChild(div);
+    });
+  }
+  const grid=document.getElementById('achGrid'); grid.innerHTML='';
+  achievements.forEach(a=>{
+    const got=!!S.achieved[a.key];
+    const div=document.createElement('div'); div.className='achRow'+(got?'':' locked');
+    div.innerHTML=`<div class="aIcon">${got?a.icon:'🔒'}</div><div><div class="aName">${a.name}</div><div class="aDesc">${a.desc}</div></div>`;
+    grid.appendChild(div);
+  });
+}
+
+/* ================= UI HELPERS ================= */
+function spawnToast(text){
+  const t=document.getElementById('toast'); t.textContent=text; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1700);
+}
+function setHint(text){
+  const h=document.getElementById('hintBar');
+  if(!text){ h.classList.remove('show'); return; }
+  h.textContent=text; h.classList.add('show');
+}
+function flashScreen(color){
+  const f=document.getElementById('flashBorder');
+  f.style.background=`radial-gradient(circle, transparent 55%, ${color} 140%)`;
+  f.style.opacity='.55';
+  setTimeout(()=>f.style.opacity='0',180);
+}
+function spawnFloat(text,x,y,color){
+  const layer=document.getElementById('floatLayer');
+  const el=document.createElement('div'); el.className='floatTxt'; el.textContent=text; el.style.color=color||'#ffd166';
+  const rect=canvas.getBoundingClientRect();
+  const cols=S.scene==='dungeon'?D_COLS:W_COLS, rows=S.scene==='dungeon'?D_ROWS:W_ROWS;
+  const scaleX=rect.width/(cols*TILE), scaleY=rect.height/(rows*TILE);
+  el.style.left=Math.max(4,Math.min(rect.width-10,x*scaleX-10))+'px';
+  el.style.top=Math.max(4,(y*scaleY-26))+'px';
+  layer.appendChild(el); setTimeout(()=>el.remove(),1200);
+}
+function updateHud(){
+  document.getElementById('shardVal').textContent=S.shards;
+  document.getElementById('shardTotalVal').textContent=TOTAL_SHARDS;
+  document.getElementById('energyVal').textContent=Math.floor(S.energy);
+  document.getElementById('energyMaxVal').textContent=S.energyMax;
+  document.getElementById('forgetFill').style.width=Math.max(0,Math.min(100,S.forgetting))+'%';
+  document.getElementById('skyCostTxt').textContent='2⚡';
+  document.getElementById('owlCostTxt').textContent=owlCost()+'🔮';
+  updateObjective();
+}
+function showOverlay(id){ document.querySelectorAll('.overlay').forEach(o=>o.classList.remove('show')); document.getElementById(id).classList.add('show'); }
+function hideOverlays(){ document.querySelectorAll('.overlay').forEach(o=>o.classList.remove('show')); }
+
+function directionPhrase(targetC,targetR){
+  const pc=Math.floor(S.px/TILE), pr=Math.floor(S.py/TILE);
+  const dx=targetC-pc, dy=targetR-pr;
+  const parts=[];
+  if(dy>0) parts.push(dy+' tiles south'); else if(dy<0) parts.push((-dy)+' tiles north');
+  if(dx>0) parts.push(dx+' tiles east'); else if(dx<0) parts.push((-dx)+' tiles west');
+  return parts.length ? ('about '+parts.join(' and ')+' from here') : "you're right on top of it";
+}
+function updateObjective(){
+  const el=document.getElementById('objectiveBar');
+  if(S.scene==='dungeon'){
+    const left=['RM','RS','RO'].filter(t=>!S.bossRifts[t]).length;
+    el.textContent = left>0 ? `🧭 GOAL: Seal the ${left} remaining rift${left>1?'s':''} — watch for red warning tiles!` : `🧭 All rifts sealed — finishing up...`;
+  } else if(!S.secretsCleared.door){
+    el.textContent='🧭 GOAL: Open the Ancient Ruins door — '+directionPhrase(DUNGEON_ENTRANCE.c,DUNGEON_ENTRANCE.r)+'. It pulses GOLD, not white. Use Memory Pulse on it.';
+  } else {
+    el.textContent='🧭 GOAL: The Ruins door is open — walk inside and seal all three rifts to finish the game.';
+  }
+}
+
+/* ================= DIALOGUE ================= */
+function openDialogue(name,text,actions){
+  document.getElementById('dlgName').textContent=name;
+  document.getElementById('dlgText').textContent=text;
+  const row=document.getElementById('dlgActions'); row.innerHTML='';
+  (actions||[{label:'Close',fn:closeDialogue}]).forEach(a=>{
+    const b=document.createElement('button'); b.className='dlgBtn'+(a.primary?' primary':'');
+    b.textContent=a.label; b.onclick=()=>{ sndUI(); a.fn(); };
+    row.appendChild(b);
+  });
+  document.getElementById('dialogue').classList.add('show');
+  paused=true;
+}
+function closeDialogue(){ document.getElementById('dialogue').classList.remove('show'); paused=false; }
+
+/* ================= CANVAS ================= */
+const canvas=document.getElementById('gcanvas');
+const ctx=canvas.getContext('2d');
+function resizeCanvas(){
+  if(S.scene==='overworld'){ canvas.width=W_COLS*TILE; canvas.height=W_ROWS*TILE; }
+  else { canvas.width=D_COLS*TILE; canvas.height=D_ROWS*TILE; }
+}
+resizeCanvas();
+
+/* ================= INPUT ================= */
+window.addEventListener('keydown', e=>{
+  S.keysHeld[e.key.toLowerCase()]=true;
+  if(e.key==='1') tryPower('mem');
+  if(e.key==='2') tryPower('sky');
+  if(e.key==='3') tryPower('owl');
+  if(e.key===' '||e.key==='Enter') tryInteract();
+  if(e.key==='Escape') togglePause();
+});
+window.addEventListener('keyup', e=>{ S.keysHeld[e.key.toLowerCase()]=false; });
+
+function bindHoldButton(id, dir){
+  const el=document.getElementById(id);
+  const down=ev=>{ ev.preventDefault(); S.dpad[dir]=true; el.classList.add('active'); };
+  const up=ev=>{ if(ev) ev.preventDefault(); S.dpad[dir]=false; el.classList.remove('active'); };
+  el.addEventListener('pointerdown', down);
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+  el.addEventListener('pointerleave', up);
+  el.addEventListener('contextmenu', ev=>ev.preventDefault());
+}
+bindHoldButton('btnUp','up'); bindHoldButton('btnDown','down'); bindHoldButton('btnLeft','left'); bindHoldButton('btnRight','right');
+document.getElementById('interactBtn').addEventListener('click', ()=>{ sndUI(); tryInteract(); });
+document.getElementById('pwMem').addEventListener('click', ()=>tryPower('mem'));
+document.getElementById('pwSky').addEventListener('click', ()=>tryPower('sky'));
+document.getElementById('pwOwl').addEventListener('click', ()=>tryPower('owl'));
+
+function isMoveUp(){ return S.keysHeld['arrowup']||S.keysHeld['w']||S.dpad.up; }
+function isMoveDown(){ return S.keysHeld['arrowdown']||S.keysHeld['s']||S.dpad.down; }
+function isMoveLeft(){ return S.keysHeld['arrowleft']||S.keysHeld['a']||S.dpad.left; }
+function isMoveRight(){ return S.keysHeld['arrowright']||S.keysHeld['d']||S.dpad.right; }
+
+/* ================= MOVEMENT / COLLISION ================= */
+const PLAYER_R=7;
+function currentMap(){ return S.scene==='overworld'?worldMap:dungeonMap; }
+function currentCols(){ return S.scene==='overworld'?W_COLS:D_COLS; }
+function currentRows(){ return S.scene==='overworld'?W_ROWS:D_ROWS; }
+function canStandAt(x,y){
+  const map=currentMap(), cols=currentCols(), rows=currentRows();
+  const pts=[[x-PLAYER_R,y-PLAYER_R],[x+PLAYER_R,y-PLAYER_R],[x-PLAYER_R,y+PLAYER_R],[x+PLAYER_R,y+PLAYER_R]];
+  for(const [px_,py_] of pts){ const c=Math.floor(px_/TILE), r=Math.floor(py_/TILE); if(isBlocked(map,c,r,cols,rows)) return false; }
+  return true;
+}
+function updateMovement(dt){
+  const speed=100;
+  let dx=0,dy=0;
+  if(isMoveUp()){dy-=1;S.facing='up';}
+  if(isMoveDown()){dy+=1;S.facing='down';}
+  if(isMoveLeft()){dx-=1;S.facing='left';}
+  if(isMoveRight()){dx+=1;S.facing='right';}
+  if(dx||dy){
+    const len=Math.hypot(dx,dy); dx/=len; dy/=len;
+    S.moveAnim+=dt*9;
+    const nx=S.px+dx*speed*dt, ny=S.py+dy*speed*dt;
+    if(canStandAt(nx,S.py)) S.px=nx;
+    if(canStandAt(S.px,ny)) S.py=ny;
+  }
+  const maxX=currentCols()*TILE-PLAYER_R, maxY=currentRows()*TILE-PLAYER_R;
+  S.px=Math.max(PLAYER_R,Math.min(maxX,S.px));
+  S.py=Math.max(PLAYER_R,Math.min(maxY,S.py));
+
+  if(S.scene==='overworld'){
+    const c=Math.floor(S.px/TILE), r=Math.floor(S.py/TILE);
+    if(c===DUNGEON_ENTRANCE.c && r===DUNGEON_ENTRANCE.r && worldMap[r][c]==='.') enterDungeon();
+    shardEntities.forEach(sh=>{ if(sh.taken) return; const sx=px(sh.c), sy=px(sh.r); if(Math.hypot(S.px-sx,S.py-sy)<13) collectShard(sh,sx,sy); });
+    hiddenShards.forEach(sh=>{ if(sh.taken) return; const sx=px(sh.c), sy=px(sh.r); if(Math.hypot(S.px-sx,S.py-sy)<13) collectShard(sh,sx,sy); });
+  } else {
+    const c=Math.floor(S.px/TILE), r=Math.floor(S.py/TILE);
+    if(c===DUNGEON_EXIT.c && r===DUNGEON_EXIT.r) exitDungeon();
+    dungeonShardEntities.forEach(sh=>{ if(sh.taken) return; const sx=px(sh.c), sy=px(sh.r); if(Math.hypot(S.px-sx,S.py-sy)<13) collectReserveShard(sh,sx,sy); });
+    // danger-tile collision check happens in updateDangers()
+  }
+}
+function collectShard(sh,sx,sy){
+  sh.taken=true; S.shards++; S._totalShardsEver++; sndShard();
+  spawnParticles(sx,sy,'#ffd166',12);
+  spawnFloat(`+1 🔮 (${S._totalShardsEver}/${TOTAL_SHARDS})`, sx, sy, '#ffd166');
+  updateHud(); checkAch();
+}
+function collectReserveShard(sh,sx,sy){
+  sh.taken=true; S.shards++; sndShard();
+  spawnParticles(sx,sy,'#ffd166',12);
+  spawnFloat('+1 🔮 (reserve, spendable here)', sx, sy, '#ffd166');
+  updateHud();
+}
+
+/* ================= PROXIMITY (hints + glow) ================= */
+const POWER_RANGE=TILE*2.2;
+function nearestPuzzleTile(){
+  const map=currentMap();
+  const pc=Math.floor(S.px/TILE), pr=Math.floor(S.py/TILE);
+  let best=null, bestD=Infinity;
+  for(let r=Math.max(0,pr-3); r<=pr+3; r++){
+    for(let c=Math.max(0,pc-3); c<=pc+3; c++){
+      if(r<0||c<0||r>=currentRows()||c>=currentCols()) continue;
+      const t=map[r][c];
+      if(PUZZLE_TYPES.includes(t)){
+        const d=Math.hypot(px(c)-S.px, px(r)-S.py);
+        if(d<POWER_RANGE && d<bestD){ bestD=d; best={c,r,t}; }
+      }
+    }
+  }
+  return best;
+}
+function nearestNpc(){
+  let best=null,bestD=Infinity;
+  npcs.forEach(n=>{ const d=Math.hypot(px(n.c)-S.px,px(n.r)-S.py); if(d<32 && d<bestD){ bestD=d; best=n; } });
+  return best;
+}
+const tileFlavor={
+  'D':"The Ancient Ruins door — sealed shut, glowing gold. Something already known might open it. (This is the way to finish the game.)",
+  'G':"The harbor checkpoint. Whatever lets you pass depends on conditions right now.",
+  'T':"An old telescope, pointed at tonight's sky. It might show something true only right now.",
+  'C':"A carved tablet, worn smooth. Whatever it says has been true for a very long time.",
+  'F':"A wall of fog too thick to walk through yourself.",
+  'B':"A pile of rubble blocking a narrow passage.",
+  'N':"Something glints out past the shallows — too far to reach on foot.",
+  'RM':"A rift covered in fading runes.",
+  'RS':"A rift crackling like a held storm.",
+  'RO':"A rift wrapped in shifting, hiding fog."
+};
+function updateProximityUI(){
+  const tile=nearestPuzzleTile();
+  const npc=nearestNpc();
+  document.getElementById('interactBtn').classList.toggle('pulse', !!npc);
+  if(tile){
+    setHint(tileFlavor[tile.t]||"Something here might respond to a charm.");
+    document.querySelectorAll('.pwrBtn').forEach(b=>b.classList.add('nearby'));
+  } else if(npc){
+    setHint(npc.name+' is nearby — tap ✋ to talk.');
+    document.querySelectorAll('.pwrBtn').forEach(b=>b.classList.remove('nearby'));
+  } else {
+    setHint('');
+    document.querySelectorAll('.pwrBtn').forEach(b=>b.classList.remove('nearby'));
+  }
+}
+
+/* ================= POWERS ================= */
+function tilePowerType(t){
+  if(t==='D'||t==='C'||t==='RM') return 'mem';
+  if(t==='G'||t==='T'||t==='RS') return 'sky';
+  if(t==='F'||t==='B'||t==='N'||t==='RO') return 'owl';
+  return null;
+}
+function tryPower(power){
+  if(paused) return;
+  if(S.powerCooldown[power]>0) return;
+  if(power==='sky' && S.energy<2){ spawnToast("Not enough energy yet — it regenerates over time."); sndFizzle(); return; }
+  if(power==='owl' && S.shards<owlCost()){ spawnToast(`Owl Scouts need ${owlCost()} shards.`); sndFizzle(); return; }
+
+  const target=nearestPuzzleTile();
+  if(!target){
+    sndFizzle();
+    spawnFloat('nothing to use that on here', S.px, S.py, '#9fb0ff');
+    return;
+  }
+  const need=tilePowerType(target.t);
+  S.powerCooldown[power]=power==='mem'?0.35:0.9;
+
+  if(need===power){
+    resolvePuzzle(target,power);
+  } else {
+    if(power==='sky') S.energy=Math.max(0,S.energy-2);
+    sndFizzle(); flashScreen('rgba(255,107,107,0.18)');
+    S.forgetting=Math.min(100,S.forgetting+2);
+    spawnParticles(px(target.c),px(target.r),'#777',8);
+    spawnFloat('fizzle...', px(target.c), px(target.r), '#8a8aa0');
+    updateHud();
+  }
+}
+function owlCost(){ return S.upgrades.owlCost?2:3; }
+function resolvePuzzle(target,power){
+  if(power==='sky') S.energy=Math.max(0,S.energy-2);
+  if(power==='owl') S.shards=Math.max(0,S.shards-owlCost());
+  if(power==='owl') runOwlScoutAnim(target, ()=>finishPuzzle(target,power));
+  else finishPuzzle(target,power);
+}
+function note(icon,text){ S.journalNotes=S.journalNotes||[]; S.journalNotes.push({icon,text}); }
+function finishPuzzle(target,power){
+  const map=currentMap();
+  sndGood(); flashScreen('rgba(110,231,168,0.25)');
+  spawnParticles(px(target.c),px(target.r), power==='mem'?'#a78bfa':power==='sky'?'#7fe3ff':'#d97b3f', 20);
+  S.forgetting=Math.max(0,S.forgetting-7);
+  updateHud();
+
+  if(S.scene==='overworld'){
+    if(target.t==='D'){
+      map[target.r][target.c]='.'; S.secretsCleared.door=true;
+      spawnFloat('The door remembers its own lock.', px(target.c), px(target.r), '#a78bfa');
+      note('🗝️',"The ruins door opened the instant I called up what was already written into it — no trip outside needed for that one.");
+    }
+    if(target.t==='G'){
+      map[target.r][target.c]='P'; S.secretsCleared.gate=true;
+      spawnFloat('Tide checked — clear to cross.', px(target.c), px(target.r), '#7fe3ff');
+      note('⚓',"The harbor gate only opened once I checked conditions as they are right now. Yesterday's answer wouldn't have done it.");
+    }
+    if(target.t==='T'){
+      map[target.r][target.c]='.'; S.secretsCleared.telescope=true;
+      hiddenShards.push({c:16,r:4,taken:false});
+      spawnFloat("Tonight's sky, exactly as it is.", px(target.c), px(target.r), '#7fe3ff');
+      note('🔭',"Same trick as the harbor gate, different sky. Some things you just have to check fresh, every time.");
+    }
+    if(target.t==='C'){
+      map[target.r][target.c]='.'; S.secretsCleared.tablet=true;
+      hiddenShards.push({c:6,r:2,taken:false});
+      spawnFloat('Old words, never changed, still true.', px(target.c), px(target.r), '#a78bfa');
+      note('📜',"The tablet didn't need checking against anything new — it had been sitting there, already true, the whole time.");
+    }
+    if(target.t==='F'){
+      for(let r=0;r<W_ROWS;r++) for(let c=0;c<W_COLS;c++) if(worldMap[r][c]==='F') worldMap[r][c]='.';
+      S.secretsCleared.fog=true; hiddenShards.push({c:3,r:13,taken:false},{c:4,r:14,taken:false});
+      spawnFloat('The grove was here all along.', px(target.c), px(target.r), '#d97b3f');
+      note('🌲',"I couldn't push through that fog myself, so I sent the owls instead. They reached what I couldn't.");
+    }
+    if(target.t==='B'){
+      map[target.r][target.c]='.'; S.secretsCleared.rubble=true; hiddenShards.push({c:12,r:16,taken:false});
+      spawnFloat('Owls clear the rubble, stone by stone.', px(target.c), px(target.r), '#d97b3f');
+      note('🪨',"Same as the fog — somewhere I couldn't reach on foot. The owls did the legwork I couldn't.");
+    }
+    if(target.t==='N'){
+      map[target.r][target.c]='.'; S.secretsCleared.farwater=true; hiddenShards.push({c:17,r:6,taken:false});
+      spawnFloat('The owls bring it back from the shallows.', px(target.c), px(target.r), '#d97b3f');
+      note('🌊',"Couldn't swim out there myself, so the owls went instead and brought something back. Different obstacle, same idea as the fog.");
+    }
+    maybeShowConcept(power);
+  } else {
+    map[target.r][target.c]='.';
+    S.bossRifts[target.t]=true;
+    spawnFloat('The rift seals shut.', px(target.c), px(target.r), '#fff');
+    note('🌀',"One of the rifts sealed. Whatever it wanted, the right kind of knowing closed it.");
+    updateObjective();
+    checkBossDone();
+  }
+  checkAch();
+}
+function spawnParticles(x,y,color,n){
+  for(let i=0;i<n;i++){
+    const ang=Math.random()*Math.PI*2, sp=24+Math.random()*46;
+    particles.push({x,y,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp,life:.6+Math.random()*.4,maxLife:.6+Math.random()*.4,color,size:2+Math.random()*2.4});
+  }
+}
+function updateParticles(dt){ particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;}); particles=particles.filter(p=>p.life>0); }
+function runOwlScoutAnim(target,onDone){
+  sndOwl();
+  owlAnim={x:S.px,y:S.py-10,targetX:px(target.c),targetY:px(target.r)-14,t:0,duration:1.0,onDone};
+  paused=true;
+}
+function updateOwlAnim(dt){
+  if(!owlAnim) return;
+  owlAnim.t+=dt;
+  if(owlAnim.t>=owlAnim.duration){ const cb=owlAnim.onDone; owlAnim=null; paused=false; cb&&cb(); }
+}
+
+/* ================= INTERACT ================= */
+function tryInteract(){
+  if(paused) return;
+  if(S.scene!=='overworld') return;
+  const n=nearestNpc();
+  if(n) talkTo(n);
+  else spawnFloat('no one nearby', S.px, S.py-10, '#9fb0ff');
+}
+function talkTo(npc){
+  sndUI();
+  if(npc.upgradeVendor){
+    openDialogue(npc.name, pick(npcLines[npc.name]), [
+      {label:"Browse upgrades", primary:true, fn:()=>{ closeDialogue(); openUpgrades(); }},
+      {label:"Just saying hi", fn:closeDialogue}
+    ]);
+    return;
+  }
+  if(npc.quest && !npc.quest.given){
+    const have=S.shards;
+    if(have>=npc.quest.need){
+      openDialogue(npc.name, npc.quest.doneText, [
+        {label:`Give ${npc.quest.need} shards`, primary:true, fn:()=>{
+          S.shards-=npc.quest.need; npc.quest.given=true;
+          const qkey=npc.name.includes('Granny')?'granny':'king';
+          S.questGiven[qkey]=true;
+          if(npc.quest.reward.energyMax){ S.energyMax+=npc.quest.reward.energyMax; S.energy=S.energyMax; }
+          if(npc.quest.reward.forgetReduce){ S.forgetting=Math.max(0,S.forgetting-npc.quest.reward.forgetReduce); }
+          updateHud(); checkAch(); closeDialogue(); spawnToast('Favor completed!');
+        }},
+        {label:"Not yet", fn:closeDialogue}
+      ]);
+    } else {
+      openDialogue(npc.name, `"Bring me ${npc.quest.need} Knowledge Shards and I'll make it worth your trip. You've got ${have} so far."`, [{label:"Close", fn:closeDialogue}]);
+    }
+    return;
+  }
+  openDialogue(npc.name, pick(npcLines[npc.name]), [{label:"Close", fn:closeDialogue}]);
+}
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+/* ================= UPGRADES ================= */
+const upgradeDefs=[
+  {key:'energy1', icon:'⚡', name:'Deeper Focus', desc:'+2 max energy for Sky Scan.', cost:5, apply:()=>{S.energyMax+=2;S.energy=S.energyMax;}},
+  {key:'energy2', icon:'🌬️', name:'Steady Wind', desc:'Energy regenerates faster.', cost:6, apply:()=>{}},
+  {key:'owlCost', icon:'🪶', name:'Trained Owls', desc:'Owl Scouts cost 1 less shard.', cost:7, apply:()=>{ updateHud(); }},
+];
+function openUpgrades(){
+  const list=document.getElementById('upgList'); list.innerHTML='';
+  upgradeDefs.forEach(u=>{
+    const bought=S.upgrades[u.key];
+    const div=document.createElement('div'); div.className='upgItem';
+    div.innerHTML=`<div class="uIcon">${u.icon}</div><div class="uInfo"><div class="uName">${u.name}</div><div class="uDesc">${u.desc}</div></div>`;
+    const btn=document.createElement('button');
+    btn.className='upgBtn'+((bought||S.shards<u.cost)?' disabled':'');
+    btn.textContent=bought?'Owned':(u.cost+' 🔮');
+    if(!bought){ btn.onclick=()=>{ if(S.shards<u.cost) return; S.shards-=u.cost; S.upgrades[u.key]=true; u.apply(); sndGood(); updateHud(); checkAch(); openUpgrades(); }; }
+    div.appendChild(btn); list.appendChild(div);
+  });
+  showOverlay('ov-upgrade'); paused=true;
+}
+document.getElementById('closeUpgradeBtn').onclick=()=>{ sndUI(); hideOverlays(); paused=false; };
+
+/* ================= ENERGY / FORGETTING ================= */
+function updateEnergy(dt){
+  S.energyRegenT+=dt;
+  const regenRate=S.upgrades.energy2?3.5:6.5;
+  if(S.energyRegenT>=regenRate){ S.energyRegenT=0; if(S.energy<S.energyMax){ S.energy++; updateHud(); } }
+}
+function updateForgetting(dt){ S.forgetting=Math.min(100, S.forgetting+dt*0.1); updateHud(); if(S.forgetting>=100) triggerLose(); }
+
+/* ================= DUNGEON ================= */
+function enterDungeon(){
+  S.scene='dungeon'; S.bossRifts={RM:false,RS:false,RO:false}; buildDungeon(); resizeCanvas();
+  S.px=px(2); S.py=px(8);
+  dungeonDangers=[]; dungeonSpawnT=3.0;
+  dungeonShardEntities=[{c:2,r:2,taken:false},{c:11,r:7,taken:false}];
+  spawnToast("The air changes. Something is in here with you.");
+  if(S.shards<owlCost() && !S.dungeonWarnedLowShards){
+    S.dungeonWarnedLowShards=true;
+    setTimeout(()=> spawnToast(`Low on shards — there are 2 reserve 🔮 in this room, or you can leave the way you came and gather more.`), 1400);
+  }
+  updateHud();
+}
+function exitDungeon(){ S.scene='overworld'; resizeCanvas(); S.px=px(DUNGEON_ENTRANCE.c); S.py=px(DUNGEON_ENTRANCE.r)+TILE; dungeonDangers=[]; updateHud(); }
+let bossTauntT=2;
+const bossTaunts=["...you came all this way to lose something too?...","...go ahead. try a charm. see what's left of you after...","...everyone forgets eventually. I just speed it along...","...interesting. you actually look before you choose..."];
+function checkBossDone(){
+  if(S.bossRifts.RM && S.bossRifts.RS && S.bossRifts.RO){ S.graduated=true; checkAch(); dungeonDangers=[]; setTimeout(triggerWin,600); }
+}
+
+/* ================= BOSS ATTACK MECHANIC: warning tiles you must dodge ================= */
+function updateDangers(dt){
+  if(S.scene!=='dungeon') return;
+  const bossAlive = !(S.bossRifts.RM && S.bossRifts.RS && S.bossRifts.RO);
+  if(bossAlive){
+    dungeonSpawnT-=dt;
+    if(dungeonSpawnT<=0){
+      dungeonSpawnT=4+Math.random()*2.5;
+      let tries=0, spot=null;
+      while(tries<20){
+        const c=1+Math.floor(Math.random()*(D_COLS-2)), r=1+Math.floor(Math.random()*(D_ROWS-2));
+        if(dungeonMap[r][c]==='.' && Math.hypot(px(c)-S.px,px(r)-S.py)>TILE*1.5){ spot={c,r}; break; }
+        tries++;
+      }
+      if(spot){ dungeonDangers.push({c:spot.c,r:spot.r,timer:1.5,phase:'warn'}); sndWarn(); }
+    }
+  }
+  dungeonDangers.forEach(d=>{
+    if(d.phase==='warn'){
+      d.timer-=dt;
+      if(d.timer<=0){
+        d.phase='hit'; d.timer=0.25;
+        const pc=Math.floor(S.px/TILE), pr=Math.floor(S.py/TILE);
+        if(pc===d.c && pr===d.r){
+          S.forgetting=Math.min(100,S.forgetting+9);
+          flashScreen('rgba(255,107,107,0.4)'); sndAttack(); updateHud();
+          spawnFloat('hit!', px(d.c), px(d.r), '#ff6b6b');
+          if(S.forgetting>=100) triggerLose();
+        } else {
+          spawnParticles(px(d.c),px(d.r),'#ff6b6b',10);
+        }
+      }
+    } else if(d.phase==='hit'){
+      d.timer-=dt;
+    }
+  });
+  dungeonDangers=dungeonDangers.filter(d=> !(d.phase==='hit' && d.timer<=0));
+}
+
+/* ================= WIN / LOSE ================= */
+function triggerWin(){
+  document.getElementById('winTitle').textContent = S.shards>=8 ? "Lumina Remembers Everything" : "Lumina Wakes Up";
+  document.getElementById('winText').textContent = "The shape in the ruins doesn't explode or vanish — it just stops mattering, like a name finally remembered. Somewhere above, every stopped clock starts ticking again at once. Olwen will want every detail. Probably twice.";
+  document.getElementById('finalShards').textContent=S.shards;
+  showOverlay('ov-win'); paused=true;
+}
+function triggerLose(){ showOverlay('ov-lose'); paused=true; }
+
+/* ================= PAUSE ================= */
+function togglePause(){
+  if(document.getElementById('ov-title').classList.contains('show')) return;
+  if(document.getElementById('ov-intro').classList.contains('show')) return;
+  if(document.getElementById('ov-win').classList.contains('show')) return;
+  if(document.getElementById('ov-lose').classList.contains('show')) return;
+  if(document.getElementById('ov-pause').classList.contains('show')){ hideOverlays(); paused=false; }
+  else { showOverlay('ov-pause'); paused=true; }
+}
+document.getElementById('pauseBtn').onclick=()=>{ sndUI(); togglePause(); };
+document.getElementById('resumeBtn').onclick=()=>{ sndUI(); hideOverlays(); paused=false; };
+document.getElementById('helpFromPauseBtn').onclick=()=>{ sndUI(); showOverlay('ov-help'); };
+document.getElementById('quitToTitleBtn').onclick=()=>{ sndUI(); showOverlay('ov-title'); paused=true; };
+document.getElementById('helpBtn').onclick=()=>{ sndUI(); showOverlay('ov-help'); paused=true; };
+document.getElementById('closeHelpBtn').onclick=()=>{ sndUI(); hideOverlays(); paused=false; };
+
+/* ================= SAVE / LOAD (in-memory only — no persistent browser storage here) ================= */
+function doSave(){ savedSnapshot=JSON.parse(JSON.stringify({state:S, shardEntities, hiddenShards, worldMap})); spawnToast('Game saved 💾'); sndUI(); }
+function doLoad(){
+  if(!savedSnapshot){ spawnToast('No save found.'); sndFizzle(); return; }
+  const snap=JSON.parse(JSON.stringify(savedSnapshot));
+  S=snap.state; shardEntities=snap.shardEntities; hiddenShards=snap.hiddenShards;
+  for(let r=0;r<W_ROWS;r++) worldMap[r]=snap.worldMap[r];
+  resizeCanvas(); updateHud(); hideOverlays(); paused=false;
+  spawnToast('Game loaded 🪶');
+}
+document.getElementById('loadBtn').onclick=()=>{ sndUI(); doLoad(); };
+document.getElementById('logBtn').onclick=()=>{ sndUI(); renderLog(); showOverlay('ov-log'); paused=true; };
+document.getElementById('closeLogBtn').onclick=()=>{ sndUI(); hideOverlays(); paused=false; };
+
+/* ================= NAV ================= */
+document.getElementById('startBtn').onclick=()=>{ sndUI(); showOverlay('ov-intro'); };
+document.getElementById('intoWorldBtn').onclick=()=>{
+  sndUI(); S=freshState(); resetShards(); buildWorld(); resizeCanvas(); updateHud();
+  hideOverlays(); paused=false;
+};
+document.getElementById('playAgainBtn').onclick=()=>{
+  sndUI(); S=freshState(); resetShards(); buildWorld(); resizeCanvas(); updateHud(); showOverlay('ov-title'); paused=true;
+};
+document.getElementById('retryBtn').onclick=()=>{ sndUI(); S.forgetting=40; S.energy=S.energyMax; hideOverlays(); paused=false; };
+
+/* ================= RENDER ================= */
+const TILE_COLORS={ '.':'#274a2e', '#':'#1c2538', '~':'#16335c', 'S':'#6b5a35', 'P':'#52482f',
+  'F':'#3a3a4a', 'B':'#4a4030', 'G':'#3a2a55', 'T':'#1f3a55', 'D':'#4a3a1f', 'C':'#3a2a55',
+  'N':'#15406b', 'RM':'#3f2d80','RS':'#13606b','RO':'#864a26'};
+const TILE_GLYPH={ 'F':'🌫️','B':'🪨','G':'🚧','D':'🗝️','C':'📜','T':'🔭','N':'✨','RM':'📜','RO':'🌫️' };
+
+function drawScene(){
+  const map=currentMap(), cols=currentCols(), rows=currentRows();
+  ctx.fillStyle='#0d1424'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const t=map[r][c];
+      ctx.fillStyle=TILE_COLORS[t]||'#274a2e';
+      ctx.fillRect(c*TILE, r*TILE, TILE, TILE);
+      if(t==='~' && (c+r)%4===0){ ctx.fillStyle='rgba(255,255,255,0.07)'; ctx.fillRect(c*TILE+4,r*TILE+9,7,2); }
+      if(t==='.' && (c*7+r*3)%9===0){ ctx.fillStyle='rgba(255,255,255,0.035)'; ctx.fillRect(c*TILE+9,r*TILE+9,3,3); }
+    }
+  }
+  const pulse=0.5+0.5*Math.sin(performance.now()/280);
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    const t=map[r][c];
+    if(t==='D'){
+      ctx.save();
+      ctx.shadowColor='rgba(255,209,102,0.9)'; ctx.shadowBlur=10+pulse*8;
+      ctx.strokeStyle=`rgba(255,209,102,${0.7+0.3*pulse})`; ctx.lineWidth=2.5;
+      ctx.strokeRect(c*TILE+1,r*TILE+1,TILE-2,TILE-2);
+      ctx.restore();
+      ctx.fillStyle=`rgba(255,209,102,${0.08+0.1*pulse})`;
+      ctx.fillRect(c*TILE-TILE*0.4, r*TILE-TILE*3, TILE*1.8, TILE*3);
+    } else if(PUZZLE_TYPES.includes(t)){
+      ctx.strokeStyle=`rgba(255,255,255,${0.18+0.22*pulse})`; ctx.lineWidth=1.5;
+      ctx.strokeRect(c*TILE+1.5,r*TILE+1.5,TILE-3,TILE-3);
+    }
+    if(TILE_GLYPH[t]){ ctx.font='13px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(TILE_GLYPH[t], c*TILE+TILE/2, r*TILE+TILE/2+1); }
+    if(t==='RS'){ ctx.font='13px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('⛈️', c*TILE+TILE/2, r*TILE+TILE/2+1); }
+  }
+
+  if(S.scene==='overworld'){
+    [...shardEntities, ...hiddenShards].forEach(sh=>{
+      if(sh.taken) return;
+      const x=px(sh.c), y=px(sh.r), bob=Math.sin(performance.now()/300+sh.c)*2;
+      ctx.font='13px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('🔮', x, y+bob);
+    });
+    npcs.forEach(n=>{
+      const x=px(n.c), y=px(n.r);
+      const near=Math.hypot(x-S.px,y-S.py)<32;
+      if(near){ ctx.beginPath(); ctx.arc(x,y,12,0,Math.PI*2); ctx.strokeStyle='rgba(255,209,102,0.8)'; ctx.lineWidth=1.5; ctx.stroke(); }
+      ctx.font='15px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(n.av, x, y);
+    });
+  } else {
+    dungeonShardEntities.forEach(sh=>{
+      if(sh.taken) return;
+      const x=px(sh.c), y=px(sh.r), bob=Math.sin(performance.now()/300+sh.c)*2;
+      ctx.font='13px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('🔮', x, y+bob);
+    });
+    // visible Thief presence while boss alive
+    const bossAlive = !(S.bossRifts.RM && S.bossRifts.RS && S.bossRifts.RO);
+    if(bossAlive){
+      const tbob=Math.sin(performance.now()/450)*4;
+      ctx.font='20px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.globalAlpha=0.85;
+      ctx.fillText('🫥', D_COLS*TILE/2, 16+tbob);
+      ctx.globalAlpha=1;
+    }
+    // danger tiles
+    dungeonDangers.forEach(d=>{
+      const x=d.c*TILE, y=d.r*TILE;
+      if(d.phase==='warn'){
+        const blink=0.4+0.6*Math.abs(Math.sin(performance.now()/120));
+        ctx.fillStyle=`rgba(255,80,80,${0.25+0.35*blink})`;
+        ctx.fillRect(x,y,TILE,TILE);
+        ctx.strokeStyle=`rgba(255,80,80,${0.7+0.3*blink})`; ctx.lineWidth=2;
+        ctx.strokeRect(x+1,y+1,TILE-2,TILE-2);
+        ctx.font='12px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('⚠️', x+TILE/2, y+TILE/2);
+      } else {
+        ctx.fillStyle='rgba(255,180,80,0.5)'; ctx.fillRect(x,y,TILE,TILE);
+      }
+    });
+    bossTauntT-=1/60;
+    if(bossTauntT<=0 && bossAlive){ bossTauntT=5+Math.random()*4; spawnFloat(pick(bossTaunts), D_COLS*TILE/2, 30, '#ff8fb1'); }
+  }
+
+  particles.forEach(p=>{ ctx.globalAlpha=Math.max(0,p.life/p.maxLife); ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill(); });
+  ctx.globalAlpha=1;
+
+  if(owlAnim){
+    const t=Math.min(1,owlAnim.t/owlAnim.duration);
+    const ease=t<0.5?2*t*t:-1+(4-2*t)*t;
+    const x=owlAnim.x+(owlAnim.targetX-owlAnim.x)*ease;
+    const y=owlAnim.y+(owlAnim.targetY-owlAnim.y)*ease - Math.sin(t*Math.PI)*22;
+    ctx.font='16px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🦉', x, y);
+  }
+
+  const bob=Math.abs(Math.sin(S.moveAnim))*2;
+  ctx.save();
+  ctx.translate(S.px, S.py-bob);
+  if(S.facing==='left') ctx.scale(-1,1);
+  ctx.font='16px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('🦉',0,0);
+  ctx.restore();
+}
+
+/* ================= POWER BUTTON RESOURCE STATE ================= */
+function updatePowerButtons(){
+  document.getElementById('pwSky').classList.toggle('disabled', S.energy<2);
+  document.getElementById('pwOwl').classList.toggle('disabled', S.shards<owlCost());
+}
+
+/* ================= GAME LOOP ================= */
+function loop(now){
+  const dt=Math.min(0.05,(now-lastTime)/1000); lastTime=now;
+  if(!paused){
+    updateMovement(dt); updateEnergy(dt); updateForgetting(dt); updateProximityUI(); updateDangers(dt);
+  }
+  updateObjective();
+  updateOwlAnim(dt);
+  S.powerCooldown.mem=Math.max(0,S.powerCooldown.mem-dt);
+  S.powerCooldown.sky=Math.max(0,S.powerCooldown.sky-dt);
+  S.powerCooldown.owl=Math.max(0,S.powerCooldown.owl-dt);
+  updateParticles(dt);
+  drawScene();
+  updatePowerButtons();
+  requestAnimationFrame(loop);
+}
+updateHud();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
