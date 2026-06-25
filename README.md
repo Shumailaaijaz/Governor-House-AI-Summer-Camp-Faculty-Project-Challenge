@@ -93,7 +93,7 @@ Create a browser game that teaches one concept from the **AI Prompting in 2026**
 
 **Game Link**
 
-*(Add your published game URL here.)*
+*https://claude.ai/public/artifacts/a0deb4ab-26e3-438c-9f2d-f3df9bcf8db8*
 
 ---
 
@@ -103,13 +103,7 @@ This project was designed through multiple iterations with AI.
 
 **Chat Link**
 
-*(Add your shared Claude or ChatGPT conversation here.)*
-
----
-
-## 📸 Screenshots
-
-Add screenshots or gameplay GIFs here after publishing.
+*https://claude.ai/share/9b1ed90c-ba15-4e9a-aad4-1f2f3fb890b2*
 
 ---
 
